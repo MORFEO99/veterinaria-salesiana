@@ -285,17 +285,21 @@
 <!-- Bootstrap 5 JS Bundle (incluye Popper) vía CDN -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
+
 <script>
 /* =========================================================================
    SISTEMA DE CONTROL Y ADOPCIÓN DE MASCOTAS
-   Persistencia con Supabase
-   Se mantiene la estructura visual original de index-5.
+   Universidad Salesiana de Bolivia - Programación Avanzada
+
+   IMPORTANTE:
+   Se conserva la estructura, diseño, colores, formularios, tarjetas,
+   modal y footer originales de index-5.html.
+   Solamente se cambia la persistencia de localStorage por Supabase.
    ========================================================================= */
 
-/* -------------------------------------------------------------------
+/* -------------------------------------------------------------------------
    1. CONFIGURACIÓN DE SUPABASE
-   ------------------------------------------------------------------- */
-
+   ------------------------------------------------------------------------- */
 const SUPABASE_URL = 'https://kuwaoafjnytehegdmuyi.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_x7Aj7NTSv_IVauKybud2Hg_y2Os3zpx';
 const SUPABASE_TABLA = 'mascotas';
@@ -307,10 +311,9 @@ const supabaseHeaders = {
     'Prefer': 'return=representation'
 };
 
-/* -------------------------------------------------------------------
+/* -------------------------------------------------------------------------
    2. VARIABLES Y REFERENCIAS DEL DOM
-   ------------------------------------------------------------------- */
-
+   ------------------------------------------------------------------------- */
 let mascotas = [];
 let idMascotaActiva = null;
 let fotoBase64Temporal = '';
@@ -320,26 +323,82 @@ const formMascota = document.getElementById('formMascota');
 const inputFoto = document.getElementById('foto');
 const previewFoto = document.getElementById('previewFoto');
 const filtroEstado = document.getElementById('filtroEstado');
-
 const modalPerfilEl = document.getElementById('modalPerfil');
 const modalPerfil = new bootstrap.Modal(modalPerfilEl);
 const modalBody = document.getElementById('modalBody');
 const btnEliminarModal = document.getElementById('btnEliminarModal');
 
-/* -------------------------------------------------------------------
-   3. CARGAR REGISTROS DESDE SUPABASE
-   ------------------------------------------------------------------- */
+/* -------------------------------------------------------------------------
+   3. MANEJO DE LA FOTO
+   ------------------------------------------------------------------------- */
+inputFoto.addEventListener('change', function(evento){
+    const archivo = evento.target.files[0];
 
-async function cargarDesdeSupabase() {
+    if(!archivo){
+        fotoBase64Temporal = '';
+        previewFoto.style.display = 'none';
+        previewFoto.src = '';
+        return;
+    }
+
+    const lector = new FileReader();
+
+    lector.onload = function(eventoLectura){
+        fotoBase64Temporal = eventoLectura.target.result;
+        previewFoto.src = fotoBase64Temporal;
+        previewFoto.style.display = 'block';
+    };
+
+    lector.readAsDataURL(archivo);
+});
+
+/* -------------------------------------------------------------------------
+   4. IMAGEN DE MARCADOR DE POSICIÓN
+   ------------------------------------------------------------------------- */
+function generarFotoPlaceholder(){
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="220">
+        <rect width="100%" height="100%" fill="#e9ecef"/>
+        <text x="50%" y="50%" font-size="16" fill="#6c757d"
+              text-anchor="middle" dy=".3em" font-family="Arial">
+              Sin fotografía
+        </text>
+    </svg>`;
+
+    return 'data:image/svg+xml;base64,' + btoa(svg);
+}
+
+/* -------------------------------------------------------------------------
+   5. ESCAPAR TEXTO PARA MOSTRARLO DE FORMA SEGURA
+   ------------------------------------------------------------------------- */
+function escapeHTML(texto){
+    if(texto === null || texto === undefined){
+        return '';
+    }
+
+    return String(texto)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+}
+
+/* -------------------------------------------------------------------------
+   6. CARGAR REGISTROS DESDE SUPABASE
+   ------------------------------------------------------------------------- */
+async function cargarDesdeSupabase(){
     galeria.innerHTML = `
         <div class="col-12">
             <div class="empty-state">
-                <div class="spinner-border text-primary mb-3" role="status"></div>
-                <p>Cargando mascotas desde Supabase...</p>
+                <div class="spinner-border text-primary mb-3" role="status">
+                    <span class="visually-hidden">Cargando...</span>
+                </div>
+                <p>Cargando mascotas registradas...</p>
             </div>
-        </div>`;
+        </div>
+    `;
 
-    try {
+    try{
         const respuesta = await fetch(
             `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLA}?select=*&order=id.desc`,
             {
@@ -351,16 +410,16 @@ async function cargarDesdeSupabase() {
             }
         );
 
-        if (!respuesta.ok) {
+        if(!respuesta.ok){
             const errorTexto = await respuesta.text();
-            throw new Error(errorTexto);
+            throw new Error(errorTexto || 'No se pudo consultar Supabase.');
         }
 
         mascotas = await respuesta.json();
         renderizarGaleria();
 
-    } catch (error) {
-        console.error('Error al cargar desde Supabase:', error);
+    }catch(error){
+        console.error('Error al cargar mascotas:', error);
 
         galeria.innerHTML = `
             <div class="col-12">
@@ -369,73 +428,17 @@ async function cargarDesdeSupabase() {
                     <br><br>
                     ${escapeHTML(error.message)}
                     <br><br>
-                    Revisa que la tabla "mascotas" exista y que las políticas RLS
-                    permitan consultar los registros.
+                    Verifica la tabla "mascotas" y sus políticas RLS.
                 </div>
-            </div>`;
+            </div>
+        `;
     }
 }
 
-/* -------------------------------------------------------------------
-   4. MANEJO DE LA FOTO
-   ------------------------------------------------------------------- */
-
-inputFoto.addEventListener('change', function(evento) {
-    const archivo = evento.target.files[0];
-
-    if (!archivo) {
-        fotoBase64Temporal = '';
-        previewFoto.style.display = 'none';
-        return;
-    }
-
-    const lector = new FileReader();
-
-    lector.onload = function(eventoLectura) {
-        fotoBase64Temporal = eventoLectura.target.result;
-        previewFoto.src = fotoBase64Temporal;
-        previewFoto.style.display = 'block';
-    };
-
-    lector.readAsDataURL(archivo);
-});
-
-/* -------------------------------------------------------------------
-   5. IMAGEN POR DEFECTO
-   ------------------------------------------------------------------- */
-
-function generarFotoPlaceholder(especie = 'Mascota') {
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="220">
-        <rect width="100%" height="100%" fill="#e9ecef"/>
-        <text x="50%" y="45%" font-size="55" fill="#6c757d"
-              text-anchor="middle" font-family="Arial">🐾</text>
-        <text x="50%" y="70%" font-size="16" fill="#6c757d"
-              text-anchor="middle" font-family="Arial">${especie}</text>
-    </svg>`;
-
-    return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
-}
-
-/* -------------------------------------------------------------------
-   6. ESCAPAR TEXTO
-   ------------------------------------------------------------------- */
-
-function escapeHTML(texto) {
-    if (texto === null || texto === undefined) return '';
-
-    return String(texto)
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;')
-        .replaceAll("'", '&#039;');
-}
-
-/* -------------------------------------------------------------------
-   7. REGISTRO DE UNA NUEVA MASCOTA EN SUPABASE
-   ------------------------------------------------------------------- */
-
-formMascota.addEventListener('submit', async function(evento) {
+/* -------------------------------------------------------------------------
+   7. REGISTRAR UNA NUEVA MASCOTA EN SUPABASE
+   ------------------------------------------------------------------------- */
+formMascota.addEventListener('submit', async function(evento){
     evento.preventDefault();
 
     const nuevaMascota = {
@@ -446,18 +449,11 @@ formMascota.addEventListener('submit', async function(evento) {
         raza: document.getElementById('raza').value.trim(),
         salud: document.getElementById('salud').value.trim(),
         descripcion: document.getElementById('descripcion').value.trim(),
-        foto: fotoBase64Temporal ||
-              generarFotoPlaceholder(document.getElementById('especie').value),
+        foto: fotoBase64Temporal || generarFotoPlaceholder(),
         estado: 'Disponible'
     };
 
-    const botonGuardar = formMascota.querySelector('button[type="submit"]');
-    const textoOriginal = botonGuardar.innerHTML;
-
-    botonGuardar.disabled = true;
-    botonGuardar.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Guardando...';
-
-    try {
+    try{
         const respuesta = await fetch(
             `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLA}`,
             {
@@ -467,9 +463,9 @@ formMascota.addEventListener('submit', async function(evento) {
             }
         );
 
-        if (!respuesta.ok) {
+        if(!respuesta.ok){
             const errorTexto = await respuesta.text();
-            throw new Error(errorTexto);
+            throw new Error(errorTexto || 'No se pudo registrar la mascota.');
         }
 
         const datosGuardados = await respuesta.json();
@@ -478,32 +474,29 @@ formMascota.addEventListener('submit', async function(evento) {
         mascotas.unshift(mascotaGuardada);
         renderizarGaleria();
 
-        alert('Mascota registrada correctamente en Supabase.');
-
         formMascota.reset();
-        previewFoto.style.display = 'none';
         previewFoto.src = '';
+        previewFoto.style.display = 'none';
         fotoBase64Temporal = '';
 
-    } catch (error) {
+        alert('Mascota registrada correctamente en Supabase.');
+
+    }catch(error){
         console.error('Error al registrar:', error);
 
         alert(
-            'No se pudo guardar la mascota en Supabase.\n\n' +
+            'No se pudo guardar la mascota en Supabase.
+
+' +
             error.message
         );
-
-    } finally {
-        botonGuardar.disabled = false;
-        botonGuardar.innerHTML = textoOriginal;
     }
 });
 
-/* -------------------------------------------------------------------
-   8. RENDERIZADO DE LA GALERÍA
-   ------------------------------------------------------------------- */
-
-function renderizarGaleria() {
+/* -------------------------------------------------------------------------
+   8. RENDERIZAR LA GALERÍA
+   ------------------------------------------------------------------------- */
+function renderizarGaleria(){
     const filtro = filtroEstado.value;
 
     const listaFiltrada = mascotas.filter(
@@ -512,14 +505,17 @@ function renderizarGaleria() {
 
     galeria.innerHTML = '';
 
-    if (listaFiltrada.length === 0) {
+    if(listaFiltrada.length === 0){
         galeria.innerHTML = `
             <div class="col-12">
                 <div class="empty-state">
                     <i class="bi bi-emoji-frown" style="font-size:2.5rem;"></i>
-                    <p class="mt-2">No hay mascotas registradas para este filtro todavía.</p>
+                    <p class="mt-2">
+                        No hay mascotas registradas para este filtro todavía.
+                    </p>
                 </div>
-            </div>`;
+            </div>
+        `;
         return;
     }
 
@@ -540,6 +536,8 @@ function renderizarGaleria() {
         const columna = document.createElement('div');
         columna.className = 'col-sm-6 col-lg-4';
 
+        const foto = mascota.foto || generarFotoPlaceholder();
+
         columna.innerHTML = `
             <div class="card card-mascota position-relative">
                 <span class="badge ${claseBadge} card-header-especie">
@@ -547,10 +545,10 @@ function renderizarGaleria() {
                 </span>
 
                 <img
-                    src="${mascota.foto || generarFotoPlaceholder(mascota.especie)}"
+                    src="${escapeHTML(foto)}"
                     class="card-img-top"
                     alt="Foto de ${escapeHTML(mascota.nombre)}"
-                    onerror="this.src=generarFotoPlaceholder('${escapeHTML(mascota.especie)}')"
+                    onerror="this.src=generarFotoPlaceholder()"
                 >
 
                 <div class="card-body d-flex flex-column">
@@ -569,19 +567,22 @@ function renderizarGaleria() {
                     <div class="mt-auto d-grid gap-2">
                         <button
                             class="btn btn-usb-amarillo btn-sm btn-ver-perfil"
-                            data-id="${mascota.id}">
+                            data-id="${Number(mascota.id)}"
+                        >
                             <i class="bi bi-person-badge"></i>
                             Ver Perfil Completo
                         </button>
 
                         <button
                             class="btn ${claseBtnEstado} btn-sm btn-toggle-estado"
-                            data-id="${mascota.id}">
+                            data-id="${Number(mascota.id)}"
+                        >
                             ${textoBtnEstado}
                         </button>
                     </div>
                 </div>
-            </div>`;
+            </div>
+        `;
 
         galeria.appendChild(columna);
     });
@@ -589,38 +590,41 @@ function renderizarGaleria() {
     enlazarEventosDeTarjetas();
 }
 
-/* -------------------------------------------------------------------
-   9. EVENTOS DE LAS TARJETAS
-   ------------------------------------------------------------------- */
-
-function enlazarEventosDeTarjetas() {
+/* -------------------------------------------------------------------------
+   9. ENLAZAR BOTONES DE LAS TARJETAS
+   ------------------------------------------------------------------------- */
+function enlazarEventosDeTarjetas(){
     document.querySelectorAll('.btn-ver-perfil').forEach(boton => {
-        boton.addEventListener('click', () => {
+        boton.addEventListener('click', function(){
             abrirPerfilCompleto(Number(boton.dataset.id));
         });
     });
 
     document.querySelectorAll('.btn-toggle-estado').forEach(boton => {
-        boton.addEventListener('click', () => {
+        boton.addEventListener('click', function(){
             alternarEstadoMascota(Number(boton.dataset.id));
         });
     });
 }
 
-/* -------------------------------------------------------------------
+/* -------------------------------------------------------------------------
    10. CAMBIAR ESTADO EN SUPABASE
-   ------------------------------------------------------------------- */
+   ------------------------------------------------------------------------- */
+async function alternarEstadoMascota(id){
+    const mascota = mascotas.find(
+        m => Number(m.id) === Number(id)
+    );
 
-async function alternarEstadoMascota(id) {
-    const mascota = mascotas.find(m => Number(m.id) === Number(id));
-    if (!mascota) return;
+    if(!mascota){
+        return;
+    }
 
     const nuevoEstado =
         mascota.estado === 'Disponible'
             ? 'Adoptado'
             : 'Disponible';
 
-    try {
+    try{
         const respuesta = await fetch(
             `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLA}?id=eq.${encodeURIComponent(id)}`,
             {
@@ -632,54 +636,66 @@ async function alternarEstadoMascota(id) {
             }
         );
 
-        if (!respuesta.ok) {
+        if(!respuesta.ok){
             const errorTexto = await respuesta.text();
-            throw new Error(errorTexto);
+            throw new Error(
+                errorTexto || 'No se pudo cambiar el estado.'
+            );
         }
 
         mascota.estado = nuevoEstado;
         renderizarGaleria();
 
-    } catch (error) {
-        console.error('Error al actualizar estado:', error);
+        if(idMascotaActiva === id){
+            abrirPerfilCompleto(id);
+        }
+
+    }catch(error){
+        console.error('Error al cambiar estado:', error);
 
         alert(
-            'No se pudo actualizar el estado.\n\n' +
+            'No se pudo actualizar el estado en Supabase.
+
+' +
             error.message
         );
     }
 }
 
-/* -------------------------------------------------------------------
-   11. MODAL DE PERFIL COMPLETO
-   ------------------------------------------------------------------- */
-
-function abrirPerfilCompleto(id) {
+/* -------------------------------------------------------------------------
+   11. ABRIR PERFIL COMPLETO
+   ------------------------------------------------------------------------- */
+function abrirPerfilCompleto(id){
     const mascota = mascotas.find(
         m => Number(m.id) === Number(id)
     );
 
-    if (!mascota) return;
+    if(!mascota){
+        return;
+    }
 
-    idMascotaActiva = mascota.id;
+    idMascotaActiva = Number(mascota.id);
 
-    const claseBadge = mascota.estado === 'Disponible'
-        ? 'badge-disponible'
-        : 'badge-adoptado';
+    const claseBadge =
+        mascota.estado === 'Disponible'
+            ? 'badge-disponible'
+            : 'badge-adoptado';
 
-    const foto = mascota.foto ||
-        generarFotoPlaceholder(mascota.especie);
+    const foto = mascota.foto || generarFotoPlaceholder();
 
     modalBody.innerHTML = `
         <img
-            src="${foto}"
+            src="${escapeHTML(foto)}"
             class="foto-modal"
             alt="Foto completa de ${escapeHTML(mascota.nombre)}"
-            onerror="this.src=generarFotoPlaceholder('${escapeHTML(mascota.especie)}')"
+            onerror="this.src=generarFotoPlaceholder()"
         >
 
         <div class="d-flex justify-content-between align-items-center mb-3">
-            <h3 class="mb-0">${escapeHTML(mascota.nombre)}</h3>
+            <h3 class="mb-0">
+                ${escapeHTML(mascota.nombre)}
+            </h3>
+
             <span class="badge ${claseBadge} fs-6">
                 ${escapeHTML(mascota.estado)}
             </span>
@@ -691,42 +707,50 @@ function abrirPerfilCompleto(id) {
                     <th style="width:35%">Especie</th>
                     <td>${escapeHTML(mascota.especie)}</td>
                 </tr>
+
                 <tr>
                     <th>Raza</th>
                     <td>${escapeHTML(mascota.raza)}</td>
                 </tr>
+
                 <tr>
                     <th>Edad</th>
                     <td>${escapeHTML(mascota.edad)} años</td>
                 </tr>
+
                 <tr>
                     <th>Ficha médica / Vacunas</th>
                     <td>${escapeHTML(mascota.salud)}</td>
                 </tr>
+
                 <tr>
                     <th>Historia</th>
                     <td>${escapeHTML(mascota.descripcion)}</td>
                 </tr>
             </tbody>
-        </table>`;
+        </table>
+    `;
 
     modalPerfil.show();
 }
 
-/* -------------------------------------------------------------------
+/* -------------------------------------------------------------------------
    12. ELIMINAR REGISTRO DE SUPABASE
-   ------------------------------------------------------------------- */
-
-btnEliminarModal.addEventListener('click', async function() {
-    if (idMascotaActiva === null) return;
+   ------------------------------------------------------------------------- */
+btnEliminarModal.addEventListener('click', async function(){
+    if(idMascotaActiva === null){
+        return;
+    }
 
     const confirmar = confirm(
         '¿Está seguro de eliminar este registro? Esta acción no se puede deshacer.'
     );
 
-    if (!confirmar) return;
+    if(!confirmar){
+        return;
+    }
 
-    try {
+    try{
         const respuesta = await fetch(
             `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLA}?id=eq.${encodeURIComponent(idMascotaActiva)}`,
             {
@@ -735,9 +759,11 @@ btnEliminarModal.addEventListener('click', async function() {
             }
         );
 
-        if (!respuesta.ok) {
+        if(!respuesta.ok){
             const errorTexto = await respuesta.text();
-            throw new Error(errorTexto);
+            throw new Error(
+                errorTexto || 'No se pudo eliminar el registro.'
+            );
         }
 
         mascotas = mascotas.filter(
@@ -748,28 +774,28 @@ btnEliminarModal.addEventListener('click', async function() {
         modalPerfil.hide();
         idMascotaActiva = null;
 
-        alert('Mascota eliminada correctamente.');
+        alert('Registro eliminado correctamente.');
 
-    } catch (error) {
+    }catch(error){
         console.error('Error al eliminar:', error);
 
         alert(
-            'No se pudo eliminar la mascota.\n\n' +
+            'No se pudo eliminar el registro de Supabase.
+
+' +
             error.message
         );
     }
 });
 
-/* -------------------------------------------------------------------
+/* -------------------------------------------------------------------------
    13. FILTRO
-   ------------------------------------------------------------------- */
-
+   ------------------------------------------------------------------------- */
 filtroEstado.addEventListener('change', renderizarGaleria);
 
-/* -------------------------------------------------------------------
-   14. INICIO
-   ------------------------------------------------------------------- */
-
+/* -------------------------------------------------------------------------
+   14. INICIALIZACIÓN
+   ------------------------------------------------------------------------- */
 cargarDesdeSupabase();
 </script>
 
